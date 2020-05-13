@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/neelchoudhary/budgetwallet-api-server/models"
@@ -16,9 +17,11 @@ import (
 
 var logger = func(methodName string, err error) *log.Entry {
 	if err != nil {
-		return log.WithFields(log.Fields{"service": "WebhookController", "method": methodName, "error": err.Error()})
+		return log.WithFields(log.Fields{"service": "WebhookController", "method": methodName, "error": err.Error(),
+			"date": time.Now().Local().Format("01/02/2006 03:04:05")})
 	}
-	return log.WithFields(log.Fields{"service": "WebhookController", "method": methodName})
+	return log.WithFields(log.Fields{"service": "WebhookController", "method": methodName,
+		"date": time.Now().Local().Format("01/02/2006 03:04:05")})
 }
 
 // WebhookController ...
@@ -50,18 +53,23 @@ func (c *WebhookController) ReceiveWebhook(w http.ResponseWriter, r *http.Reques
 		http.Error(w, http.StatusText(500), http.StatusInternalServerError)
 		return
 	}
-	logger("ReceiveWebhook", err).Info(fmt.Sprintf("Received Webhook: " + webhook.WebhookCode))
+	logger("ReceiveWebhook", err).Info(fmt.Sprintf("Incoming Webhook - Code: %s, Type: %s, New Count: %d, Remove Count: %d.", webhook.WebhookCode, webhook.WebhookType, webhook.NewTransactionCount, len(webhook.RemovedTransactions)))
 	if webhook.WebhookCode == "HISTORICAL_UPDATE" {
 		req := &plaidfinances.AddHistoricalFinancialTransactionsRequest{
 			UserId:        userID,
 			PlaidItemId:   webhook.ItemIDPlaid,
 			ExpectedCount: int64(webhook.NewTransactionCount),
 		}
-		_, err := c.plaidFinancesServiceClient.AddHistoricalFinancialTransactions(context.Background(), req)
+		res, err := c.plaidFinancesServiceClient.AddHistoricalFinancialTransactions(context.Background(), req)
 		if err != nil {
 			logger("ReceiveWebhook", err).Error(fmt.Sprintf("Service call to AddHistoricalFinancialTransactions failed"))
 			http.Error(w, http.StatusText(500), http.StatusInternalServerError)
 			return
+		}
+		if res.GetNewTransactions() != int64(webhook.NewTransactionCount) {
+			logger("ReceiveWebhook", err).Warn(fmt.Sprintf("Webhook Mismatch - Code: %s, Type: %s, Expected Count: %d, Actual Count: %d.", webhook.WebhookCode, webhook.WebhookType, webhook.NewTransactionCount, res.GetNewTransactions()))
+		} else {
+			logger("ReceiveWebhook", err).Info(fmt.Sprintf("Webhook Success - Code: %s, Type: %s, New Count: %d", webhook.WebhookCode, webhook.WebhookType, res.GetNewTransactions()))
 		}
 	} else if webhook.WebhookCode == "DEFAULT_UPDATE" {
 		req := &plaidfinances.AddFinancialTransactionsRequest{
@@ -69,11 +77,16 @@ func (c *WebhookController) ReceiveWebhook(w http.ResponseWriter, r *http.Reques
 			PlaidItemId:   webhook.ItemIDPlaid,
 			ExpectedCount: int64(webhook.NewTransactionCount),
 		}
-		_, err := c.plaidFinancesServiceClient.AddFinancialTransactions(context.Background(), req)
+		res, err := c.plaidFinancesServiceClient.AddFinancialTransactions(context.Background(), req)
 		if err != nil {
 			logger("ReceiveWebhook", err).Error(fmt.Sprintf("Service call to AddFinancialTransactions failed"))
 			http.Error(w, http.StatusText(500), http.StatusInternalServerError)
 			return
+		}
+		if res.GetNewTransactions() != int64(webhook.NewTransactionCount) {
+			logger("ReceiveWebhook", err).Warn(fmt.Sprintf("Webhook Mismatch - Code: %s, Type: %s, Expected Count: %d, Actual Count: %d.", webhook.WebhookCode, webhook.WebhookType, webhook.NewTransactionCount, res.GetNewTransactions()))
+		} else {
+			logger("ReceiveWebhook", err).Info(fmt.Sprintf("Webhook Success - Code: %s, Type: %s, New Count: %d", webhook.WebhookCode, webhook.WebhookType, res.GetNewTransactions()))
 		}
 	} else if webhook.WebhookCode == "TRANSACTIONS_REMOVED" {
 		req := &plaidfinances.RemoveFinancialTransactionsRequest{
@@ -86,6 +99,7 @@ func (c *WebhookController) ReceiveWebhook(w http.ResponseWriter, r *http.Reques
 			http.Error(w, http.StatusText(500), http.StatusInternalServerError)
 			return
 		}
+		logger("ReceiveWebhook", err).Info(fmt.Sprintf("Webhook Success - Code: %s, Type: %s, Removed Count: %d", webhook.WebhookCode, webhook.WebhookType, len(webhook.RemovedTransactions)))
 	}
 
 	w.Header().Set("Content-Type", "application/json")
