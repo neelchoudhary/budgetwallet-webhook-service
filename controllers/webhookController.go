@@ -56,9 +56,8 @@ func (c *WebhookController) ReceiveWebhook(w http.ResponseWriter, r *http.Reques
 	logger("ReceiveWebhook", err).Info(fmt.Sprintf("Incoming Webhook - Code: %s, Type: %s, New Count: %d, Remove Count: %d.", webhook.WebhookCode, webhook.WebhookType, webhook.NewTransactionCount, len(webhook.RemovedTransactions)))
 	if webhook.WebhookCode == "HISTORICAL_UPDATE" {
 		req := &plaidfinances.AddHistoricalFinancialTransactionsRequest{
-			UserId:        userID,
-			PlaidItemId:   webhook.ItemIDPlaid,
-			ExpectedCount: int64(webhook.NewTransactionCount),
+			UserId:      userID,
+			PlaidItemId: webhook.ItemIDPlaid,
 		}
 		res, err := c.plaidFinancesServiceClient.AddHistoricalFinancialTransactions(context.Background(), req)
 		if err != nil {
@@ -73,9 +72,8 @@ func (c *WebhookController) ReceiveWebhook(w http.ResponseWriter, r *http.Reques
 		}
 	} else if webhook.WebhookCode == "DEFAULT_UPDATE" {
 		req := &plaidfinances.AddFinancialTransactionsRequest{
-			UserId:        userID,
-			PlaidItemId:   webhook.ItemIDPlaid,
-			ExpectedCount: int64(webhook.NewTransactionCount),
+			UserId:      userID,
+			PlaidItemId: webhook.ItemIDPlaid,
 		}
 		res, err := c.plaidFinancesServiceClient.AddFinancialTransactions(context.Background(), req)
 		if err != nil {
