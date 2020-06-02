@@ -34,7 +34,7 @@ func main() {
 	pf := plaidfinances.NewPlaidFinancesServiceClient(apiServerConn.clientConn)
 
 	webhookController := controllers.NewWebhookController(pf)
-	r.HandleFunc("/webhook/{user_id}", webhookController.ReceiveWebhook).Methods("POST")
+	r.HandleFunc("/plaidwebhook/{user_id}", webhookController.ReceiveWebhook).Methods("POST")
 
 	// Start server
 	log.Println("Starting Webhook Server..." + *serverEnv)
